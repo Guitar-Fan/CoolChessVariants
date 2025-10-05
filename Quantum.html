@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Chess</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/ui.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="chessboard"></div>
+        
+        <div id="ui-panel">
+            <header>
+                <h1>Quantum Chess</h1>
+                <p class="tagline">Where every move is a possibility.</p>
+            </header>
+            
+            <div id="status-box">
+                <h2 id="turn-indicator">White's Turn</h2>
+                <p id="game-status">Select a piece to move.</p>
+            </div>
+            
+            <div id="controls">
+                <button id="new-game-btn">New Game</button>
+                <button id="tunnel-btn" disabled>Use Quantum Tunnel (1)</button>
+            </div>
+            
+            <div id="how-to-play">
+                <h3>How It Works</h3>
+                <ul>
+                    <li><strong>Superposition:</strong> Most pieces can move to two squares at once, entering a quantum state.</li>
+                    <li><strong>Collapse:</strong> An attack on one of a piece's quantum positions forces it to the other. An attack on both captures it.</li>
+                    <li><strong>Quantum Tunnel:</strong> Once per game, a piece can "tunnel" through an adjacent piece.</li>
+                    <li><strong>Goal:</strong> Standard checkmate. The King's quantum state must be fully trapped.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/pieces.js"></script>
+    <script src="js/board.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

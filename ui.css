@@ -1,0 +1,140 @@
+/* --- UI Panel Styling --- */
+
+#ui-panel {
+        width: 350p;
+            padding: 25px;
+                background: rgba(15, 12, 41, 0.7);
+                    border-radius: 10px;
+                        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+                            display: flex;
+                                flex-direction: column;
+                                    height: 720px; /* Match chessboard height */
+                                        box-sizing: border-box;
+                                    }
+
+                                    #ui-panel header {
+                                            text-align: center;
+                                                border-bottom: 1px solid rgba(138, 43, 226, 0.4);
+                                                    padding-bottom: 15px;
+                                                        margin-bottom: 20px;
+                                                    }
+
+                                                    #ui-panel h1 {
+                                                            font-family: 'Orbitron', sans-serif;
+                                                                color: #e0e0e0;
+                                                                    font-size: 2.2em;
+                                                                        margin: 0;
+                                                                            letter-spacing: 2px;
+                                                                                text-shadow: 0 0 10px var(--dark-square);
+                                                                            }
+
+                                                                            #ui-panel .tagline {
+                                                                                    font-size: 0.9em;
+                                                                                        color: #b3b3b3;
+                                                                                            margin: 5px 0 0 0;
+                                                                                        }
+
+                                                                                        /* Status Box */
+                                                                                        #status-box {
+                                                                                                background: rgba(0, 0, 0, 0.3);
+                                                                                                    padding: 20px;
+                                                                                                        border-radius: 8px;
+                                                                                                            text-align: center;
+                                                                                                                margin-bottom: 25px;
+                                                                                                                    flex-grow: 1; /* Pushes footer down */
+                                                                                                                }
+
+                                                                                                                #turn-indicator {
+                                                                                                                        font-family: 'Orbitron', sans-serif;
+                                                                                                                            margin: 0 0 10px 0;
+                                                                                                                                font-size: 1.5em;
+                                                                                                                                    color: #fff;
+                                                                                                                                }
+
+                                                                                                                                #game-status {
+                                                                                                                                        font-size: 1em;
+                                                                                                                                            color: #ccc;
+                                                                                                                                                min-height: 40px; /* reserve space */
+                                                                                                                                                    margin: 0;
+                                                                                                                                                }
+
+                                                                                                                                                /* Controls */
+                                                                                                                                                #controls {
+                                                                                                                                                        display: flex;
+                                                                                                                                                            flex-direction: column;
+                                                                                                                                                                gap: 15px;
+                                                                                                                                                                    margin-bottom: 25px;
+                                                                                                                                                                }
+
+                                                                                                                                                                #controls button {
+                                                                                                                                                                        padding: 15px;
+                                                                                                                                                                            font-size: 1.1em;
+                                                                                                                                                                                font-family: 'Orbitron', sans-serif;
+                                                                                                                                                                                    border: none;
+                                                                                                                                                                                        border-radius: 5px;
+                                                                                                                                                                                            cursor: pointer;
+                                                                                                                                                                                                background-color: var(--dark-square);
+                                                                                                                                                                                                    color: white;
+                                                                                                                                                                                                        transition: all 0.3s ease;
+                                                                                                                                                                                                            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                                                                                                                                                                                                        }
+
+                                                                                                                                                                                                        #controls button:hover {
+                                                                                                                                                                                                                background-color: var(--dark-square-hover);
+                                                                                                                                                                                                                    box-shadow: 0 4px 15px rgba(157, 78, 221, 0.5);
+                                                                                                                                                                                                                        transform: translateY(-2px);
+                                                                                                                                                                                                                    }
+
+                                                                                                                                                                                                                    #controls button:disabled {
+                                                                                                                                                                                                                            background-color: #555;
+                                                                                                                                                                                                                                color: #999;
+                                                                                                                                                                                                                                    cursor: not-allowed;
+                                                                                                                                                                                                                                        box-shadow: none;
+                                                                                                                                                                                                                                            transform: none;
+                                                                                                                                                                                                                                        }
+
+                                                                                                                                                                                                                                        /* How to play section styling */
+                                                                                                                                                                                                                                        #how-to-play {
+                                                                                                                                                                                                                                                padding: 15px;
+                                                                                                                                                                                                                                                    background-color: rgba(255, 255, 255, 0.05);
+                                                                                                                                                                                                                                                        border-radius: 5px;
+                                                                                                                                                                                                                                                            margin-bottom: 20px;
+                                                                                                                                                                                                                                                        }
+
+                                                                                                                                                                                                                        0px;
+                                                                                                                                                                                                                    }
+
+                                                                                                                                                                                                                    #how-to-play h3 {
+                                                                                                                                                                                                                            margin-top: 0;
+                                                                                                                                                                                                                                font-family: 'Orbitron', sans-serif;
+                                                                                                                                                                                                                                    color: #e0e0e0;
+                                                                                                                                                                                                                                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                                                                                                                                                                                                                                            padding-bottom: 8px;
+                                                                                                                                                                                                                                        }
+
+                                                                                                                                                                                                                                        #how-to-play ul {
+                                                                                                                                                                                                                                                list-style: none;
+                                                                                                                                                                                                                                                    padding-left: 0;
+                                                                                                                                                                                                                                                        margin: 0;
+                                                                                                                                                                                                                                                            font-size: 0.9em;
+                                                                                                                                                                                                                                                        }
+
+                                                                                                                                                                                                                                                        #how-to-play li {
+                                                                                                                                                                                                                                                                margin-bottom: 10px;
+                                                                                                                                                                                                                                                                    color: #ccc;
+                                                                                                                                                                                                                                                                        line-height: 1.5;
+                                                                                                                                                                                                                                                                    }
+
+                                                                                                                                                                                                                                                                    #how-to-play li strong {
+                                                                                                                                                                                                                                                                            color: #fff;
+                                                                                                                                                                                                                                                                        }
+
+                                                                                                                                                                                                                                                                        /* Footer styling */
+                                                                                                                                                                                                                                                                        footer {
+                                                                                                                                                                                                                                                                                text-align: center;
+                                                                                                                                                                                                                                                                                    font-size: 0.8em;
+                                                                                                                                                                                                                                                                                        color: #888;
+                                                                                                                                                                                                                                                                                            margin-top: auto; /* Pushes it to the bottom */
+                                                                                                                                                                                                                                                                                                padding-top: 15px;
+                                                                                                                                                                                                                                                                                                    border-top: 1px solid rgba(138, 43, 226, 0.4);
+                                                                                                                                                                                                                                                                                                }

@@ -1,0 +1,165 @@
+/* --- Main Board and Piece Styling --- */
+
+:root {
+        --board-bg: #1a1a2e;
+            --light-square: #e3e3e3;
+                --dark-square: #8a2be2; /* A nice purple */
+                    --light-square-hover: #f0f0f0;
+                        --dark-square-hover: #9d4edd;
+                            --highlight-color: rgba(255, 255, 0, 0.6); /* Yellow for selected piece */
+                                --move-indicator-color: rgba(30, 255, 139, 0.55);
+                                    --quantum-state-color: rgba(0, 191, 255, 0.4); /* Deep sky blue glow */
+                                        --capture-indicator-color: rgba(255, 69, 0, 0.7);
+                                    }
+
+                                    body {
+                                            background-color: var(--board-bg);
+                                                display: flex;
+                                                    justify-content: center;
+                                                        align-items: center;
+                                                            height: 100vh;
+                                                                margin: 0;
+                                                                    font-family: 'Roboto', sans-serif;
+                                                                        color: #fff;
+                                                                            overflow: hidden; /* prevents scrollbars from flashing on load */
+                                                                        }
+
+                                                                        #game-container {
+                                                                                display: flex;
+                                                                                    flex-direction: row;
+                                                                                        gap: 30px;
+                                                                                            padding: 20px;
+                                                                                                background: rgba(255, 255, 255, 0.05);
+                                                                                                    border-radius: 15px;
+                                                                                                        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+                                                                                                            backdrop-filter: blur(10px);
+                                                                                                                -webkit-backdrop-filter: blur(10px);
+                                                                                                                    border: 1px solid rgba(255, 255, 255, 0.18);
+                                                                                                                }
+
+                                                                                                                #chessboard {
+                                                                                                                        width: 720px;
+                                                                                                                            height: 720px;
+                                                                                                                                display: grid;
+                                                                                                                                    grid-template-columns: repeat(8, 1fr);
+                                                                                                                                        grid-template-rows: repeat(8, 1fr);
+                                                                                                                                            border: 5px solid #0f0c29;
+                                                                                                                                                border-radius: 10px;
+                                                                                                                                                    box-shadow: 0 0 25px rgba(138, 43, 226, 0.5);
+                                                                                                                                                }
+
+                                                                                                                                                .square {
+                                                                                                                                                        width: 90px;
+                                                                                                                                                            height: 90px;
+                                                                                                                                                                display: flex;
+                                                                                                                                                                    justify-content: center;
+                                                                                                                                                                        align-items: center;
+                                                                                                                                                                            position: relative;
+                                                                                                                                                                                transition: background-color 0.2s ease;
+                                                                                                                                                                            }
+
+                                                                                                                                                                            .square.light {
+                                                                                                                                                                                    background-color: var(--light-square);
+                                                                                                                                                                                }
+
+                                                                                                                                                                                .square.dark {
+                                                                                                                                                                                        background-color: var(--dark-square);
+                                                                                                                                                                                    }
+
+                                                                                                                                                                                    .square.light:hover {
+                                                                                                                                                                                            background-color: var(--light-square-hover);
+                                                                                                                                                                                        }
+                                                                                                                                                                                        .square.dark:hover {
+                                                                                                                                                                                                background-color: var(--dark-square-hover);
+                                                                                                                                                                                            }
+
+                                                                                                                                                                                            /* --- Piece Graphics --- */
+                                                                                                                                                                                            .piece {
+                                                                                                                                                                                                    width: 80%;
+                                                                                                                                                                                                        height: 80%;
+                                                                                                             80%;
+                                                                                                                 height: 80%;
+                                                                                                                     background-size: contain;
+                                                                                                                         background-repeat: no-repeat;
+                                                                                                                             background-position: center;
+                                                                                                                                 cursor: grab;
+                                                                                                                                     transition: transform 0.1s ease-in-out;
+                                                                                                                                         position: relative; /* For z-index to work */
+                                                                                                                                             z-index: 10;
+                                                                                                                                            }
+
+                                                                                                                                            .piece:active {
+                                                                                                                                                    cursor: grabbing;
+                                                                                                                                                        transform: scale(1.1);
+                                                                                                                                                    }
+
+                                                                                                                                                    /* Piece Images - Custom SVG set */
+                                                                                                                                                    .w-pawn { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .b-pawn { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .w-rook { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .b-rook { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .w-knight { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .b-knight { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .w-bishop { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .b-bishop { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .w-queen { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .b-queen { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .w-king { background-image: url('data:image/svg+xml;utf8,'); }
+                                                                                                                                                    .b-king { background-image: url('data:image/svg+xml;utf8,'); }
+
+                                                                                                                                                    /* --- Visual Indicators --- */
+                                                                                                                                                    .square.selected {
+                                                                                                                                                            box-shadow: inset 0 0 15px 5px var(--highlight-color);
+                                                                                                                                                        }
+
+                                                                                                                                                        .indicator {
+                                                                                                                                                                width: 30%;
+                                                                                                                                                                    height: 30%;
+                                                                                                                                                                        border-radius: 50%;
+                                                                                                                                                                            position: absolute;
+                                                                                                                                                                                z-index: 5;
+                                                                                                                                                                                    pointer-events: none; /* Can click through them */
+                                                                                                                                                                                }
+
+                                                                                                                                                                                .move-indicator {
+                                                                                                                                                                                        background-color: var(--move-indicator-color);
+                                                                                                                                                                                    }
+
+                                                                                                                                                                                    .capture-indicator {
+                                                                                                                                                                                            background-color: transparent;
+                                                                                                                                                                                                border: 6px solid var(--capture-indicator-color);
+                                                                                                                                                                                                    box-sizing: border-box;
+                                                                                                                                                                                                        width: 85%;
+                                                                                                                                                                                                            height: 85%;
+                                                                                                                                                                                                        }
+
+                                                                                                                                                                                                        /* This is the cool part - the quantum glow */
+                                                                                                                                                                                                        .quantum-state {
+                                                                                                                                                                                                                position: absolute;
+                                                                                                                                                                                                                    top: 0;
+                                                                                                                                                                                                                        left: 0;
+                                                                                                                                                                                                                            width: 100%;
+                                                                                                                                                                                                                                height: 100%;
+                                                                                                                                                                                                                                    background-color: var(--quantum-state-color);
+                                                                                                                                                                                                                                        border-radius: 4px;
+                                                                                                                                                                                                                                            z-index: 1;
+                                                                                                                                                                                                                                                pointer-events: none;
+                                                                                                                                                                                                                                                    animation: pulse 2s infinite ease-in-out;
+                                                                                                                                                                                                                                                }
+
+                                                                                                                                                                                                                                                @keyframes pulse {
+                                                                                                                                                                                                                                                        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 191, 255, 0.7); }
+                                                                                                                                                                                                                                                            70% { transform: scale(1); box-shadow: 0 0 10px 10px rgba(0, 191, 255, 0); }
+                                                                                                                                                                                                                                                                100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 191, 255, 0); }
+                                                                                                                                                                                                                                                            }
+
+                                                                                                                                                                                                                                                            .in-check {
+                                                                                                                                                                                                                                                                    /* Use a red glow for the king when in check */
+                                                                                                                                                                                                                                                                        animation: check-pulse 1s infinite ease-in-out;
+                                                                                                                                                                                                                                                                    }
+
+                                                                                                                                                                                                                                                                    @keyframes check-pulse {
+                                                                                                                                                                                                                                                                            0% { box-shadow: 0 0 15px 5px rgba(255, 0, 0, 0.7); }
+                                                                                                                                                                                                                                                                                50% { box-shadow: 0 0 25px 15px rgba(255, 0, 0, 0.3); }
+                                                                                                                                                                                                                                                                                    100% { box-shadow: 0 0 15px 5px rgba(255, 0, 0, 0.7); }
+                                                                                                                                                                                                                                                                                }
