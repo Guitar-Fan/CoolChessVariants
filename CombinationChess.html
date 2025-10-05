@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Combination Chess — Full</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root{--light:#f6ecd6;--dark:#8aa17a;--panel:#ffffff}
+body{background:linear-gradient(180deg,#e6f0fb,#f7fafc);font-family:Inter,ui-sans-serif,system-ui}
+.app{display:flex;gap:24px;align-items:flex-start;padding:28px}
+.board-wrap{width:680px}
+.board{width:680px;height:680px;border-radius:12px;display:grid;grid-template-columns:repeat(8,1fr);box-shadow:0 14px 40px rgba(2,6,23,0.15);overflow:hidden;position:relative}
+.square{width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.square.light{background:linear-gradient(180deg,var(--light),#efe0c1)}
+.square.dark{background:linear-gradient(180deg,var(--dark),#71885a)}
+.coord{position:absolute;font-size:11px;color:rgba(0,0,0,0.45);bottom:4px;right:6px}
+.piece{width:88px;height:88px;display:flex;align-items:center;justify-content:center;cursor:grab;transition:transform .12s ease, box-shadow .12s ease}
+.piece.dragging{opacity:.92;cursor:grabbing;transform:scale(1.06)}
+.badge{position:absolute;left:6px;top:6px;background:rgba(255,255,255,0.95);padding:4px 6px;border-radius:8px;font-size:12px;box-shadow:0 4px 12px rgba(2,6,23,0.08)}
+.controls{width:360px}
+.panel{background:var(--panel);padding:18px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,23,0.06)}
+.move-highlight{position:absolute;inset:0;background:radial-gradient(circle at center, rgba(59,130,246,0.12), transparent 45%);pointer-events:none}
+.capture-highlight{position:absolute;inset:0;background:radial-gradient(circle at center, rgba(239,68,68,0.12), transparent 45%);pointer-events:none}
+.kingsquare-check{outline:4px solid rgba(239,68,68,0.35);}
+.fade{transition:all .18s ease}
+.bottom-bar{display:flex;justify-content:space-between;margin-top:12px}
+.small{font-size:13px;color:#374151}
+.legend{font-size:12px;color:#4b5563;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="bottom-bar">
+      <div class="small">Turn: <strong id="turn">White</strong></div>
+      <div class="small">Last: <span id="last">—</span></div>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="panel">
+      <h2 class="text-xl font-semibold">Combination Chess</h2>
+      <p class="text-sm text-gray-600 mt-2">Capturing a piece grants you its movement powers. Stacked abilities persist. Castling, en passant, check, &amp; checkmate implemented.</p>
+      <div class="mt-4">
+        <div class="flex gap-2">
+          <button id="reset" class="px-3 py-2 bg-indigo-600 text-white rounded">New Game</button>
+          <button id="flip" class="px-3 py-2 bg-gray-100 rounded">Flip Board</button>
+        </div>
+      </div>
+      <div class="mt-4 panel" style="background:transparent;padding:0">
+        <div id="selected" class="p-3 bg-gray-50 rounded">Selected: —</div>
+        <div class="legend">Powers: P pawn N knight B bishop R rook Q queen K king</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const cols = ['a','b','c','d','e','f','g','h'];
+const rows = [8,7,6,5,4,3,2,1];
+const boardEl = document.getElementById('board');
+const selectedEl = document.getElementById('selected');
+const turnEl = document.getElementById('turn');
+const lastEl = document.getElementById('last');
+let orientation = 'white';
+
+function makeId(){return Math.random().toString(36).slice(2,9)}
+function pieceObj(type,color){return {type,color,powers:new Set([type]),id:makeId(),moved:false,enpassantVulnerable:false}}
+
+function initialBoard(){
+  const b = new Array(64).fill(null);
+  const order=['r','n','b','q','k','b','n','r'];
+  for(let i=0;i<8;i++) b[i]=pieceObj(order[i],'b');
+  for(let i=8;i<16;i++) b[i]=pieceObj('p','b');
+  for(let i=48;i<56;i++) b[i]=pieceObj('p','w');
+  for(let i=56;i<64;i++) b[i]=pieceObj(order[i-56],'w');
+  return b;
+}
+
+let board = initialBoard();
+let turn = 'w';
+let selected = null; // index
+let legalHints = [];
+
+function idxToSquare(i){ const r = Math.floor(i/8); const f = i%8; return cols[f]+rows[r]; }
+function squareToIdx(sq){ const f = cols.indexOf(sq[0]); const r = rows.indexOf(parseInt(sq[1])); return r*8+f; }
+
+function render(){ boardEl.innerHTML='';
+  for(let r=0;r<8;r++){
+    for(let f=0;f<8;f++){
+      const i = r*8+f;
+      const light = (r+f)%2===0;
+      const s = document.createElement('div'); s.className='square '+(light?'light':'dark'); s.dataset.i=i;
+      const coord = document.createElement('div'); coord.className='coord'; coord.textContent = cols[f]+rows[r]; s.appendChild(coord);
+      const p = board[i];
+      if(p){
+        const pd = document.createElement('div'); pd.className='piece fade'; pd.draggable=true; pd.dataset.id = p.id; pd.dataset.i = i;
+        pd.innerHTML = pieceSVG(p.type,p.color);
+        const badge = document.createElement('div'); badge.className='badge'; badge.textContent = Array.from(p.powers).map(x=>x.toUpperCase()).join('+');
+        s.appendChild(pd); s.appendChild(badge);
+        pd.addEventListener('dragstart', onDragStart); pd.addEventListener('dragend', onDragEnd);
+        pd.addEventListener('click', ()=>onClickSquare(i));
+      }
+      s.addEventListener('dragover', e=>e.preventDefault());
+      s.addEventListener('drop', e=>{ e.preventDefault(); onDrop(i); });
+      boardEl.appendChild(s);
+    }
+  }
+  highlightLegal();
+  turnEl.textContent = turn==='w'?'White':'Black';
+}
+
+function pieceSVG(type,color){ const white = color==='w'; const map={p:'♙',n:'♘',b:'♗',r:'♖',q:'♕',k:'♔'}; const ch = map[type]||'?'; return `<div style="font-size:56px;color:${white?'#0f172a':'#fff'}">${ch}</div>` }
+
+function onClickSquare(i){ const p = board[i]; if(selected===null){ if(p && p.color===turn) { selected=i; legalHints = legalMoves(i); showSelected(); } }
+  else {
+    if(i===selected){ selected=null; legalHints=[]; showSelected(); render(); return; }
+    const legal = legalMoves(selected);
+    if(legal.includes(i)) { doMove(selected,i); selected=null; legalHints=[]; showSelected(); render(); }
+    else if(p && p.color===turn){ selected=i; legalHints = legalMoves(i); showSelected(); }
+    else { selected=null; legalHints=[]; showSelected(); render(); }
+  }
+}
+
+function onDragStart(e){ const id = e.target.dataset.id; e.dataTransfer.setData('text/plain', id); e.target.classList.add('dragging') }
+function onDragEnd(e){ e.target.classList.remove('dragging') }
+function onDrop(targetIdx){ const id = event.dataTransfer.getData('text/plain'); const from = findIndexById(id); if(from!==-1){ const legal = legalMoves(from); if(legal.includes(targetIdx)){ doMove(from,targetIdx); render(); } } }
+
+function findIndexById(id){ for(let i=0;i<64;i++) if(board[i] && board[i].id===id) return i; return -1 }
+
+function inBounds(r,f){ return r>=0 && r<8 && f>=0 && f<8 }
+
+function cloneBoard(b){ return b.map(p=> p? {type:p.type,color:p.color,powers:new Set(Array.from(p.powers)),id:p.id,moved:p.moved,enpassantVulnerable:p.enpassantVulnerable}:null) }
+
+function legalMoves(i){ const p = board[i]; if(!p) return []; const moves = generateMoves(board,i); const legal = [];
+  for(const t of moves){ const sim = cloneBoard(board); sim[t]=sim[i]; sim[i]=null; sim[t].moved = true;
+    // handle en passant capture removal in simulation
+    if(p.type==='p'){ const rfrom=Math.floor(i/8), rto=Math.floor(t/8); if(Math.abs(rfrom-rto)===1 && Math.abs((i%8)-(t%8))===1 && !board[t]){ const capIdx = rfrom*8 + (t%8); sim[capIdx]=null; } }
+    const kingSafe = !isInCheck(sim, p.color);
+    if(kingSafe) legal.push(t);
+  }
+  return legal;
+}
+
+function generateMoves(boardState, fromIdx){ const p = boardState[fromIdx]; if(!p) return []; const moves = new Set(); const r = Math.floor(fromIdx/8), f = fromIdx%8;
+  p.powers.forEach(t=>{
+    if(t==='p'){
+      const dir = p.color==='w'?-1:1;
+      const one = fromIdx + dir*8; if(inBounds(Math.floor(one/8), one%8) && !boardState[one]) moves.add(one);
+      const startRank = p.color==='w'?6:1; const two = fromIdx + dir*16; if(Math.floor(fromIdx/8)===startRank && !boardState[one] && !boardState[two]) moves.add(two);
+      const caps = [fromIdx+dir*8-1, fromIdx+dir*8+1]; caps.forEach(c=>{ if(c>=0 && c<64){ if(boardState[c] && boardState[c].color!==p.color) moves.add(c); else { // en passant
+            const adj = fromIdx + (c%8 - f); if(boardState[adj] && boardState[adj].type==='p' && boardState[adj].color!==p.color && boardState[adj].enpassantVulnerable) moves.add(c);
+      } } });
+    }
+    if(t==='n'){
+      const deltas=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+      deltas.forEach(d=>{ const rr=r+d[0], ff=f+d[1]; if(inBounds(rr,ff)){ const j=rr*8+ff; if(!boardState[j]||boardState[j].color!==p.color) moves.add(j); } });
+    }
+    if(t==='b' || t==='r' || t==='q'){
+      const dirs = (t==='b')?[[1,1],[1,-1],[-1,1],[-1,-1]]:(t==='r')?[[1,0],[-1,0],[0,1],[0,-1]]:[[1,1],[1,-1],[-1,1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+      dirs.forEach(d=>{ let rr=r+d[0], ff=f+d[1]; while(inBounds(rr,ff)){ const j=rr*8+ff; if(!boardState[j]) moves.add(j); else { if(boardState[j].color!==p.color) moves.add(j); break; } rr+=d[0]; ff+=d[1]; } });
+    }
+    if(t==='k'){
+      for(let dr=-1;dr<=1;dr++) for(let df=-1;df<=1;df++){ if(dr===0&&df===0) continue; const rr=r+dr, ff=f+df; if(inBounds(rr,ff)){ const j=rr*8+ff; if(!boardState[j]||boardState[j].color!==p.color) moves.add(j); } }
+      // castling only if king hasn't moved
+      if(!p.moved){ const rank = p.color==='w'?7:0; const kingIdx = rank*8 + 4; if(fromIdx===kingIdx){ // kingside
+          const rookK = rank*8+7; const rookQ = rank*8+0; if(boardState[rookK] && boardState[rookK].type==='r' && !boardState[rookK].moved){ if(!boardState[rank*8+5] && !boardState[rank*8+6]) moves.add(rank*8+6); }
+          if(boardState[rookQ] && boardState[rookQ].type==='r' && !boardState[rookQ].moved){ if(!boardState[rank*8+1] && !boardState[rank*8+2] && !boardState[rank*8+3]) moves.add(rank*8+2); }
+      } }
+    }
+  });
+  return Array.from(moves);
+}
+
+function isInCheck(boardState, color){ let kingIdx=-1; for(let i=0;i<64;i++) if(boardState[i] && boardState[i].type==='k' && boardState[i].color===color) kingIdx=i;
+  if(kingIdx===-1) return true; for(let i=0;i<64;i++){ const p = boardState[i]; if(p && p.color!==color){ const moves = generateMoves(boardState,i); if(moves.includes(kingIdx)) return true; } } return false; }
+
+function anyLegalMoves(color){ for(let i=0;i<64;i++){ const p=board[i]; if(p && p.color===color){ const moves = legalMoves(i); if(moves.length>0) return true; } } return false }
+
+function doMove(from,to){ const mover = board[from]; const target = board[to]; // en passant
+  if(mover.type==='p'){ const rfrom=Math.floor(from/8), rto=Math.floor(to/8); if(Math.abs((from%8)-(to%8))===1 && !target && rfrom!==rto){ const capIdx = rfrom*8 + (to%8); board[capIdx]=null; }
+  }
+  // castling rook move
+  if(mover.type==='k' && Math.abs((from%8)-(to%8))===2){ const rank=Math.floor(from/8); if((to%8)===6){ // kingside
+      const rkIdx = rank*8+7; board[rank*8+5]=board[rkIdx]; board[rkIdx]=null; board[rank*8+5].moved=true;
+    } else if((to%8)===2){ const rkIdx = rank*8+0; board[rank*8+3]=board[rkIdx]; board[rkIdx]=null; board[rank*8+3].moved=true; }
+  }
+  // capture: absorb powers
+  if(target){ target.powers.forEach(x=> mover.powers.add(x)); }
+  board[to]=mover; board[from]=null; mover.moved=true;
+  // set en passant flags
+  for(let i=0;i<64;i++) if(board[i]) board[i].enpassantVulnerable=false;
+  if(mover.type==='p'){ if(Math.abs(Math.floor(from/8)-Math.floor(to/8))===2){ mover.enpassantVulnerable=true; } }
+  // pawn promotion
+  if(mover.type==='p'){ const rank = Math.floor(to/8); if((mover.color==='w' && rank===0) || (mover.color==='b' && rank===7)){ const promo = prompt('Promote to (q/r/b/n)','q') || 'q'; mover.type = promo[0].toLowerCase(); mover.powers.add(mover.type); }
+  }
+  lastEl.textContent = `${idxToSquare(from)} → ${idxToSquare(to)}`;
+  turn = turn==='w'?'b':'w';
+  // check for checkmate or stalemate
+  setTimeout(()=>{
+    if(isInCheck(board, turn)){
+      if(!anyLegalMoves(turn)) alert((turn==='w'?'White':'Black')+" is in checkmate!");
+    } else { if(!anyLegalMoves(turn)) alert('Stalemate'); }
+    render();
+  },50);
+}
+
+function highlightLegal(){ // clear
+  for(const s of boardEl.children){ s.classList.remove('kingsquare-check'); s.querySelectorAll('.move-highlight, .capture-highlight').forEach(n=>n.remove()); }
+  if(selected!==null){ const hints = legalMoves(selected); hints.forEach(h=>{ const el = boardEl.children[h]; const mk = document.createElement('div'); if(board[h]) mk.className='capture-highlight'; else mk.className='move-highlight'; el.appendChild(mk); }); }
+  // check highlight
+  const enemy = turn; if(isInCheck(board,enemy)){
+    for(let i=0;i<64;i++){ const p=board[i]; if(p && p.type==='k' && p.color===enemy){ boardEl.children[i].classList.add('kingsquare-check'); } }
+  }
+}
+
+function showSelected(){ if(selected===null) selectedEl.textContent='Selected: —'; else { const p = board[selected]; selectedEl.textContent = `Selected: ${idxToSquare(selected)} — ${p.color==='w'?'White':'Black'} ${p.type.toUpperCase()} | Powers: ${Array.from(p.powers).join(',').toUpperCase()}` } render(); }
+
+document.getElementById('reset').addEventListener('click', ()=>{ board = initialBoard(); turn='w'; selected=null; legalHints=[]; lastEl.textContent='—'; render(); });
+document.getElementById('flip').addEventListener('click', ()=>{ orientation = orientation==='white'?'black':'white'; boardEl.style.transform = orientation==='white'?'rotate(0deg)':'rotate(180deg)'; });
+
+render();
+</script>
+</body>
+</html>
