@@ -1,8 +1,4 @@
- CoolChessVariants
-
-A React-based chess application with a 2D chess board and pieces that move just like in regular chess.
-
- Features
+CoolChessVariants
 
 Beautiful chess board with chess.com-inspired design
 Full standard chess piece movement (Pawn, Rook, Knight, Bishop, Queen, King)
