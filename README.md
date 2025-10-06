@@ -1,28 +1,21 @@
 CoolChessVariants
 
-Beautiful chess board with chess.com-inspired design
-Full standard chess piece movement (Pawn, Rook, Knight, Bishop, Queen, King)
-Turn-based gameplay (White and Black alternating)
-Interactive UI with piece selection highlighting
-Responsive design for different screen sizes
+-Tired Chess:
+Pieces get tired after moving the piece moves a certain number of moves in a row. When tired, pieces get disabled for 1 turn, then counter resets.
 
-Getting Started
+Objective: Checkmate, Capture King
 
- How to Play
+-Quantum Chess:
+Superposition: Most pieces can move to two squares at once, entering a quantum state.
 
-1. Click on a piece to select it (highlighted in yellow)
-2. Click on a valid destination square to move the piece
-3. Pieces move according to standard chess rules
-4. White moves first, then players alternate turns
-5. You can only move pieces of the current player's color
+Collapse: An attack on one of a piece's quantum positions forces it to the other. An attack on both captures it.
 
- Technologies Used
+Quantum Tunnel: Once per game, a piece can "tunnel" through an adjacent piece.
 
-- React.js
-- CSS3
-- Unicode Chess Symbols
+Goal: Standard checkmate. The King's quantum state must be fully trapped.
 
- License
+License
 
 MIT License - see LICENSE file for details
 
+More Variants Being Developed!

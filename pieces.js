@@ -20,8 +20,31 @@ class Piece {
     }
 
     // This will be overridden by each specific piece
-    getPossibleMoves(boardState) {
+    getPossibleMoves(boardState, allowTunneling = false) {
         return [];
+    }
+
+    // Get moves that can tunnel through adjacent pieces
+    getTunnelMoves(boardState) {
+        const moves = [];
+        const [col, row] = boardState.getCoords(this.position);
+        
+        // Check all 8 directions around the piece
+        for (let dCol = -1; dCol <= 1; dCol++) {
+            for (let dRow = -1; dRow <= 1; dRow++) {
+                if (dCol === 0 && dRow === 0) continue;
+                
+                const adjacentPos = boardState.getPosition(col + dCol, row + dRow);
+                if (adjacentPos && boardState.getPiece(adjacentPos)) {
+                    // There's a piece adjacent, can we tunnel through it?
+                    const tunnelTarget = boardState.getPosition(col + 2 * dCol, row + 2 * dRow);
+                    if (tunnelTarget && !boardState.getPiece(tunnelTarget)) {
+                        moves.push(tunnelTarget);
+                    }
+                }
+            }
+        }
+        return moves;
     }
 }
 
@@ -29,6 +52,7 @@ class Pawn extends Piece {
     constructor(color, position) {
         super(color, position);
         this.hasMoved = false;
+        this.enPassantTarget = false; // Can this pawn be captured en passant?
     }
 
     getPossibleMoves(boardState) {
@@ -36,18 +60,19 @@ class Pawn extends Piece {
         const moves = [];
         const [col, row] = boardState.getCoords(this.position);
         const direction = this.color === 'w' ? 1 : -1;
+        const startRow = this.color === 'w' ? 2 : 7;
 
         // Standard 1-step move
         let oneStep = boardState.getPosition(col, row + direction);
         if (oneStep && !boardState.getPiece(oneStep)) {
             moves.push(oneStep);
-        }
-
-        // 2-step move from start
-        if (!this.hasMoved) {
-            let twoStep = boardState.getPosition(col, row + 2 * direction);
-            if (oneStep && !boardState.getPiece(oneStep) && twoStep && !boardState.getPiece(twoStep)) {
-                moves.push(twoStep);
+            
+            // 2-step move from start
+            if (row === startRow) {
+                let twoStep = boardState.getPosition(col, row + 2 * direction);
+                if (twoStep && !boardState.getPiece(twoStep)) {
+                    moves.push(twoStep);
+                }
             }
         }
 
@@ -60,6 +85,19 @@ class Pawn extends Piece {
                 if (targetPiece && targetPiece.color !== this.color) {
                     moves.push(capturePos);
                 }
+                
+                // En passant capture
+                const adjacentPos = boardState.getPosition(c, row);
+                if (adjacentPos) {
+                    const adjacentPiece = boardState.getPiece(adjacentPos);
+                    if (adjacentPiece && 
+                        adjacentPiece.type === 'pawn' &&
+                        adjacentPiece.color !== this.color &&
+                        adjacentPiece.enPassantTarget &&
+                        ((this.color === 'w' && row === 5) || (this.color === 'b' && row === 4))) {
+                        moves.push(capturePos);
+                    }
+                }
             }
         }
         
@@ -68,6 +106,11 @@ class Pawn extends Piece {
 }
 
 class Rook extends Piece {
+    constructor(color, position) {
+        super(color, position);
+        this.hasMoved = false;
+    }
+
     getPossibleMoves(boardState) {
         return boardState.getStraightMoves(this.position, this.color);
     }
@@ -114,10 +157,16 @@ class Queen extends Piece {
 }
 
 class King extends Piece {
+    constructor(color, position) {
+        super(color, position);
+        this.hasMoved = false;
+    }
+
     getPossibleMoves(boardState) {
         const moves = [];
         const [col, row] = boardState.getCoords(this.position);
         
+        // Standard king moves
         for (let dCol = -1; dCol <= 1; dCol++) {
             for (let dRow = -1; dRow <= 1; dRow++) {
                 if (dCol === 0 && dRow === 0) continue;
@@ -131,6 +180,41 @@ class King extends Piece {
                 }
             }
         }
+
+        // Castling
+        if (!this.hasMoved && !boardState.isInCheck && !boardState.isInCheck(this.color)) {
+            const backRank = this.color === 'w' ? 1 : 8;
+            
+            // Kingside castling
+            const kingsideRook = boardState.getPiece(boardState.getPosition(7, backRank));
+            if (kingsideRook && kingsideRook.type === 'rook' && !kingsideRook.hasMoved) {
+                const f1 = boardState.getPosition(5, backRank);
+                const g1 = boardState.getPosition(6, backRank);
+                if (!boardState.getPiece(f1) && !boardState.getPiece(g1)) {
+                    // Check if squares between king and rook are not under attack
+                    if (!boardState.isSquareUnderAttack(f1, this.color === 'w' ? 'b' : 'w') &&
+                        !boardState.isSquareUnderAttack(g1, this.color === 'w' ? 'b' : 'w')) {
+                        moves.push(g1);
+                    }
+                }
+            }
+            
+            // Queenside castling
+            const queensideRook = boardState.getPiece(boardState.getPosition(0, backRank));
+            if (queensideRook && queensideRook.type === 'rook' && !queensideRook.hasMoved) {
+                const d1 = boardState.getPosition(3, backRank);
+                const c1 = boardState.getPosition(2, backRank);
+                const b1 = boardState.getPosition(1, backRank);
+                if (!boardState.getPiece(d1) && !boardState.getPiece(c1) && !boardState.getPiece(b1)) {
+                    // Check if squares between king and rook are not under attack
+                    if (!boardState.isSquareUnderAttack(d1, this.color === 'w' ? 'b' : 'w') &&
+                        !boardState.isSquareUnderAttack(c1, this.color === 'w' ? 'b' : 'w')) {
+                        moves.push(c1);
+                    }
+                }
+            }
+        }
+        
         return moves;
     }
 }

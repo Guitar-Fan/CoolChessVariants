@@ -146,5 +146,176 @@ const board = {
             }
         }
         return moves;
+    },
+
+    // Check if a square is under attack by the opposing color
+    isSquareUnderAttack(position, byColor) {
+        for (const pos in this.pieces) {
+            const piece = this.pieces[pos];
+            if (piece && piece.color === byColor) {
+                // For pawns, check diagonal attacks only
+                if (piece.type === 'pawn') {
+                    const [col, row] = this.getCoords(piece.position);
+                    const direction = piece.color === 'w' ? 1 : -1;
+                    const [targetCol, targetRow] = this.getCoords(position);
+                    if (Math.abs(col - targetCol) === 1 && (row + direction) === targetRow) {
+                        return true;
+                    }
+                } else {
+                    // For other pieces, check if the target position is in their move list
+                    const moves = piece.getPossibleMoves(this);
+                    if (moves.includes(position)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    },
+
+    // Check if a king is in check
+    isInCheck(color) {
+        // Find the king
+        let kingPosition = null;
+        for (const pos in this.pieces) {
+            const piece = this.pieces[pos];
+            if (piece && piece.type === 'king' && piece.color === color) {
+                kingPosition = pos;
+                break;
+            }
+        }
+        
+        if (!kingPosition) return false;
+        
+        const opposingColor = color === 'w' ? 'b' : 'w';
+        return this.isSquareUnderAttack(kingPosition, opposingColor);
+    },
+
+    // Get all possible moves for a color (useful for checkmate detection)
+    getAllMoves(color) {
+        const allMoves = [];
+        for (const pos in this.pieces) {
+            const piece = this.pieces[pos];
+            if (piece && piece.color === color) {
+                const moves = piece.getPossibleMoves(this);
+                moves.forEach(move => {
+                    allMoves.push({
+                        from: pos,
+                        to: move,
+                        piece: piece
+                    });
+                });
+            }
+        }
+        return allMoves;
+    },
+
+    // Make a move on the board
+    makeMove(fromPos, toPos) {
+        const piece = this.getPiece(fromPos);
+        if (!piece) return false;
+
+        // Handle en passant capture
+        if (piece.type === 'pawn') {
+            const [fromCol, fromRow] = this.getCoords(fromPos);
+            const [toCol, toRow] = this.getCoords(toPos);
+            
+            // En passant capture
+            if (Math.abs(fromCol - toCol) === 1 && !this.getPiece(toPos)) {
+                const capturedPawnPos = this.getPosition(toCol, fromRow);
+                delete this.pieces[capturedPawnPos];
+            }
+            
+            // Set en passant target flag
+            if (Math.abs(fromRow - toRow) === 2) {
+                piece.enPassantTarget = true;
+                // Clear en passant flags for other pawns
+                for (const pos in this.pieces) {
+                    const p = this.pieces[pos];
+                    if (p && p.type === 'pawn' && p !== piece) {
+                        p.enPassantTarget = false;
+                    }
+                }
+            } else {
+                piece.enPassantTarget = false;
+            }
+        }
+
+        // Handle castling
+        if (piece.type === 'king' && Math.abs(this.getCoords(fromPos)[0] - this.getCoords(toPos)[0]) === 2) {
+            const [fromCol, fromRow] = this.getCoords(fromPos);
+            const [toCol, toRow] = this.getCoords(toPos);
+            
+            // Move the rook
+            if (toCol > fromCol) { // Kingside
+                const rookPos = this.getPosition(7, fromRow);
+                const newRookPos = this.getPosition(5, fromRow);
+                const rook = this.getPiece(rookPos);
+                if (rook) {
+                    rook.position = newRookPos;
+                    this.pieces[newRookPos] = rook;
+                    delete this.pieces[rookPos];
+                }
+            } else { // Queenside
+                const rookPos = this.getPosition(0, fromRow);
+                const newRookPos = this.getPosition(3, fromRow);
+                const rook = this.getPiece(rookPos);
+                if (rook) {
+                    rook.position = newRookPos;
+                    this.pieces[newRookPos] = rook;
+                    delete this.pieces[rookPos];
+                }
+            }
+        }
+
+        // Remove captured piece
+        if (this.getPiece(toPos)) {
+            delete this.pieces[toPos];
+        }
+
+        // Move the piece
+        piece.position = toPos;
+        this.pieces[toPos] = piece;
+        delete this.pieces[fromPos];
+
+        // Update piece state
+        if (piece.hasMoved !== undefined) {
+            piece.hasMoved = true;
+        }
+
+        // Clear en passant flags for pawns of the same color that didn't just move
+        if (piece.type !== 'pawn') {
+            for (const pos in this.pieces) {
+                const p = this.pieces[pos];
+                if (p && p.type === 'pawn' && p.color === piece.color) {
+                    p.enPassantTarget = false;
+                }
+            }
+        }
+
+        this.renderPieces();
+        return true;
+    },
+
+    // Check if a move is legal (doesn't leave king in check)
+    isLegalMove(fromPos, toPos) {
+        // Make a temporary copy of the board state
+        const originalPieces = {...this.pieces};
+        
+        // Make the move temporarily
+        const success = this.makeMove(fromPos, toPos);
+        if (!success) {
+            this.pieces = originalPieces;
+            return false;
+        }
+        
+        const piece = this.getPiece(toPos);
+        const isLegal = !this.isInCheck(piece.color);
+        
+        // Restore the original board state
+        this.pieces = originalPieces;
+        this.renderPieces();
+        
+        return isLegal;
     }
 };

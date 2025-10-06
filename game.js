@@ -8,6 +8,7 @@ const game = {
     possibleMoves: [],
     quantumSelection: [], // For picking two squares for a superposition move
     isQuantumMove: false,
+    tunnelMode: false,
     
     // Player turn tracking
     whiteTunnelUsed: false,
@@ -20,6 +21,7 @@ const game = {
         this.selectedPiece = null;
         this.possibleMoves = [];
         this.isQuantumMove = false;
+        this.tunnelMode = false;
         this.quantumSelection = [];
         this.updateStatus();
         this.addEventListeners();
@@ -49,7 +51,14 @@ const game = {
         if (this.selectedPiece) {
             // A piece is selected, try to move it
             if (this.possibleMoves.includes(squareId)) {
-                this.executeMove(this.selectedPiece, squareId);
+                // Check if user wants to make a quantum move (right-click or double-click behavior)
+                // For now, we'll use a simple heuristic: if more moves are available, offer quantum option
+                if (!this.selectedPiece.inSuperposition && this.possibleMoves.length > 1 && !pieceOnSquare) {
+                    this.startQuantumMove();
+                    this.handleQuantumSelection(squareId);
+                } else {
+                    this.executeMove(this.selectedPiece, squareId);
+                }
             } else {
                 // Invalid move or deselecting
                 this.clearSelection();
@@ -74,7 +83,20 @@ const game = {
             this.updateStatus("This piece is in superposition. Click one of its positions to collapse it.");
         } else {
             moves = piece.getPossibleMoves(board);
-            this.updateStatus("Select a square to move to. You may select two squares for a quantum move.");
+            
+            // Add tunnel moves if in tunnel mode
+            if (this.tunnelMode) {
+                const tunnelMoves = piece.getTunnelMoves(board);
+                moves = [...moves, ...tunnelMoves];
+                this.updateStatus("Tunnel mode: Select where to tunnel to.");
+            } else {
+                const canQuantum = this.canMakeQuantumMove(piece, moves);
+                if (canQuantum) {
+                    this.updateStatus("Click a square to move normally, or press 'Q' then click two squares for a quantum move.");
+                } else {
+                    this.updateStatus("Select a square to move to.");
+                }
+            }
         }
         
         this.possibleMoves = moves;
@@ -93,9 +115,14 @@ const game = {
         this.selectedPiece = null;
         this.possibleMoves = [];
         this.isQuantumMove = false;
+        this.tunnelMode = false;
         this.quantumSelection = [];
         document.querySelectorAll('.selected').forEach(s => s.classList.remove('selected'));
         document.querySelectorAll('.indicator').forEach(i => i.remove());
+        
+        // Re-enable tunnel button if not used
+        const tunnelUsed = this.currentPlayer === 'w' ? this.whiteTunnelUsed : this.blackTunnelUsed;
+        document.getElementById('tunnel-btn').disabled = tunnelUsed;
     },
 
     showMoveIndicators(moves) {
@@ -135,6 +162,9 @@ const game = {
         // This is a "classical" move, or collapsing a quantum state
         const originalPos = piece.position;
         
+        // Check if this is a tunnel move
+        const isTunnelMove = this.tunnelMode && originalPos && this.isTunnelMove(originalPos, targetPos);
+        
         // Handle capture
         const capturedPiece = board.getPiece(targetPos);
         if(capturedPiece) {
@@ -152,7 +182,16 @@ const game = {
         piece.position = targetPos;
         board.pieces[targetPos] = piece;
         
-        if (piece.type === 'pawn') piece.hasMoved = true;
+        // Update piece movement flags
+        if (piece.hasMoved !== undefined) {
+            piece.hasMoved = true;
+        }
+
+        // Reset tunnel mode after use
+        if (isTunnelMove) {
+            this.tunnelMode = false;
+            this.updateStatus(`${piece.type} tunneled to ${targetPos}!`);
+        }
 
         this.finishTurn();
     },
@@ -183,7 +222,22 @@ const game = {
     finishTurn() {
         this.checkForQuantumCollapse();
         board.renderPieces(); // Full re-render to handle all state changes
+        
+        // Switch players
         this.currentPlayer = (this.currentPlayer === 'w') ? 'b' : 'w';
+        
+        // Check for game end conditions
+        if (this.isCheckmate(this.currentPlayer)) {
+            const winner = this.currentPlayer === 'w' ? 'Black' : 'White';
+            this.updateStatus(`Checkmate! ${winner} wins!`);
+            return;
+        }
+        
+        if (this.isStalemate(this.currentPlayer)) {
+            this.updateStatus("Stalemate! The game is a draw.");
+            return;
+        }
+        
         this.clearSelection();
         this.updateStatus();
     },
@@ -264,9 +318,226 @@ const game = {
         return null;
     },
 
-    updateStatus() {
+    updateStatus(message) {
         const turnText = this.currentPlayer === 'w' ? "White's Turn" : "Black's Turn";
         document.getElementById('turn-indicator').innerText = turnText;
-        document.getElementById('game-status').innerText = "Select a piece to move.";
+        if (message) {
+            document.getElementById('game-status').innerText = message;
+        } else {
+            document.getElementById('game-status').innerText = "Select a piece to move.";
+        }
+    },
+
+    // Check if a piece can make a quantum move
+    canMakeQuantumMove(piece, moves) {
+        // Kings cannot enter superposition (for checkmate purposes)
+        if (piece.type === 'king') return false;
+        
+        // Need at least 2 valid moves to make a quantum move
+        if (moves.length < 2) return false;
+        
+        // Count non-capture moves (quantum moves can't capture on both squares)
+        const nonCaptureMoves = moves.filter(move => !board.getPiece(move));
+        return nonCaptureMoves.length >= 2;
+    },
+
+    // Start quantum move selection
+    startQuantumMove() {
+        this.isQuantumMove = true;
+        this.quantumSelection = [];
+        this.updateStatus("Quantum move mode: Select first position.");
+    },
+
+    // Enhanced quantum collapse detection
+    checkForQuantumCollapse() {
+        const quantumPieces = Object.values(board.pieces).filter(p => p.inSuperposition);
+        
+        for (const piece of quantumPieces) {
+            const [pos1, pos2] = piece.quantumPositions;
+            const attackers1 = this.getAttackersOf(pos1, piece.color === 'w' ? 'b' : 'w');
+            const attackers2 = this.getAttackersOf(pos2, piece.color === 'w' ? 'b' : 'w');
+            
+            if (attackers1.length > 0 && attackers2.length > 0) {
+                // Piece is observed at both locations - it's captured!
+                this.capturePiece(piece);
+                this.updateStatus(`${piece.type} was observed at both quantum positions and captured!`);
+            } else if (attackers1.length > 0) {
+                // Collapses to pos2
+                this.collapsePiece(piece, pos2, pos1);
+                this.updateStatus(`${piece.type} collapsed to avoid capture!`);
+            } else if (attackers2.length > 0) {
+                // Collapses to pos1
+                this.collapsePiece(piece, pos1, pos2);
+                this.updateStatus(`${piece.type} collapsed to avoid capture!`);
+            }
+        }
+    },
+
+    // Get pieces attacking a specific position
+    getAttackersOf(position, attackerColor) {
+        const attackers = [];
+        for (const pos in board.pieces) {
+            const piece = board.pieces[pos];
+            if (piece && piece.color === attackerColor && !piece.inSuperposition) {
+                const moves = piece.getPossibleMoves(board);
+                if (moves.includes(position)) {
+                    attackers.push(piece);
+                }
+            }
+        }
+        return attackers;
+    },
+
+    // Remove a piece that was captured in superposition
+    capturePiece(piece) {
+        // Find and remove the piece from board.pieces
+        const pieceKeys = Object.keys(board.pieces);
+        for (const key of pieceKeys) {
+            if (board.pieces[key] === piece) {
+                delete board.pieces[key];
+                break;
+            }
+        }
+    },
+
+    // Check for checkmate considering quantum states
+    isCheckmate(color) {
+        // Find the king
+        let king = null;
+        for (const pos in board.pieces) {
+            const piece = board.pieces[pos];
+            if (piece && piece.type === 'king' && piece.color === color) {
+                king = piece;
+                break;
+            }
+        }
+        
+        if (!king) return false;
+        
+        // If king is in superposition, check if all positions are under attack
+        if (king.inSuperposition) {
+            const [pos1, pos2] = king.quantumPositions;
+            const attacked1 = board.isSquareUnderAttack(pos1, color === 'w' ? 'b' : 'w');
+            const attacked2 = board.isSquareUnderAttack(pos2, color === 'w' ? 'b' : 'w');
+            
+            // Both positions must be under attack for quantum checkmate
+            if (!(attacked1 && attacked2)) return false;
+        } else {
+            // Regular check
+            if (!board.isInCheck(color)) return false;
+        }
+        
+        // Check if any legal move exists
+        return this.getAllLegalMoves(color).length === 0;
+    },
+
+    // Check for stalemate
+    isStalemate(color) {
+        // Find the king
+        let king = null;
+        for (const pos in board.pieces) {
+            const piece = board.pieces[pos];
+            if (piece && piece.type === 'king' && piece.color === color) {
+                king = piece;
+                break;
+            }
+        }
+        
+        if (!king) return false;
+        
+        // King must not be in check for stalemate
+        if (king.inSuperposition) {
+            const [pos1, pos2] = king.quantumPositions;
+            const attacked1 = board.isSquareUnderAttack(pos1, color === 'w' ? 'b' : 'w');
+            const attacked2 = board.isSquareUnderAttack(pos2, color === 'w' ? 'b' : 'w');
+            
+            // If either position is safe, not in check
+            if (!attacked1 || !attacked2) {
+                return this.getAllLegalMoves(color).length === 0;
+            }
+        } else {
+            if (!board.isInCheck(color)) {
+                return this.getAllLegalMoves(color).length === 0;
+            }
+        }
+        
+        return false;
+    },
+
+    // Get all legal moves for a color, considering quantum states
+    getAllLegalMoves(color) {
+        const moves = [];
+        for (const pos in board.pieces) {
+            const piece = board.pieces[pos];
+            if (piece && piece.color === color) {
+                if (piece.inSuperposition) {
+                    // Quantum piece can collapse to either position
+                    piece.quantumPositions.forEach(qPos => {
+                        moves.push({from: qPos, to: qPos, piece: piece, isCollapse: true});
+                    });
+                } else {
+                    const pieceMoves = piece.getPossibleMoves(board);
+                    pieceMoves.forEach(move => {
+                        // For now, we'll consider all moves legal in quantum chess
+                        // More sophisticated legal move checking would be needed for full implementation
+                        moves.push({from: piece.position, to: move, piece: piece});
+                    });
+                }
+            }
+        }
+        return moves;
+    },
+
+    // Add keyboard support for quantum moves
+    addEventListeners() {
+        board.element.addEventListener('click', (e) => this.handleSquareClick(e));
+        document.getElementById('new-game-btn').addEventListener('click', () => this.start());
+        document.getElementById('tunnel-btn').addEventListener('click', () => this.activateQuantumTunnel());
+        
+        // Keyboard support
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'q' && this.selectedPiece && !this.selectedPiece.inSuperposition) {
+                if (this.canMakeQuantumMove(this.selectedPiece, this.possibleMoves)) {
+                    this.startQuantumMove();
+                }
+            }
+            if (e.key === 'Escape') {
+                this.clearSelection();
+            }
+        });
+    },
+
+    // Check if a move is a tunnel move
+    isTunnelMove(fromPos, toPos) {
+        const [fromCol, fromRow] = board.getCoords(fromPos);
+        const [toCol, toRow] = board.getCoords(toPos);
+        
+        const colDiff = Math.abs(toCol - fromCol);
+        const rowDiff = Math.abs(toRow - fromRow);
+        
+        // Tunnel moves are exactly 2 squares away in any direction
+        return (colDiff === 2 && rowDiff === 0) || 
+               (colDiff === 0 && rowDiff === 2) || 
+               (colDiff === 2 && rowDiff === 2);
+    },
+
+    // Implement quantum tunneling
+    activateQuantumTunnel() {
+        const tunnelUsed = this.currentPlayer === 'w' ? this.whiteTunnelUsed : this.blackTunnelUsed;
+        if (tunnelUsed) {
+            this.updateStatus("Quantum tunnel already used!");
+            return;
+        }
+        
+        // Set tunnel mode
+        this.tunnelMode = true;
+        this.updateStatus("Quantum tunnel activated! Select a piece to tunnel through an adjacent piece.");
+        document.getElementById('tunnel-btn').disabled = true;
+        
+        if (this.currentPlayer === 'w') {
+            this.whiteTunnelUsed = true;
+        } else {
+            this.blackTunnelUsed = true;
+        }
     }
 };

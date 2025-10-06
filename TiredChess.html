@@ -59,7 +59,33 @@
 
         <!-- Status Panel -->
         <div id="status-panel" class="bg-white/70 backdrop-blur-sm rounded-lg shadow-lg px-6 py-2 mb-4 text-xl sm:text-2xl text-gray-800">
-            Current Turn: <span id="turn-indicator" class="font-bold text-sky-700">White</span>
+            <div id="game-status">Current Turn: <span id="turn-indicator" class="font-bold text-sky-700">White</span></div>
+            <div id="check-indicator" class="text-red-600 font-bold hidden">CHECK!</div>
+        </div>
+
+        <!-- Promotion Modal -->
+        <div id="promotion-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-6 shadow-2xl">
+                <h3 class="text-2xl font-bold mb-4 text-center">Choose Promotion</h3>
+                <div class="flex gap-4">
+                    <button id="promote-queen" class="p-4 bg-yellow-400 hover:bg-yellow-500 rounded-lg transition-colors">
+                        <img class="w-16 h-16" alt="Queen">
+                        <div class="text-sm font-bold mt-2">Queen</div>
+                    </button>
+                    <button id="promote-rook" class="p-4 bg-blue-400 hover:bg-blue-500 rounded-lg transition-colors">
+                        <img class="w-16 h-16" alt="Rook">
+                        <div class="text-sm font-bold mt-2">Rook</div>
+                    </button>
+                    <button id="promote-bishop" class="p-4 bg-green-400 hover:bg-green-500 rounded-lg transition-colors">
+                        <img class="w-16 h-16" alt="Bishop">
+                        <div class="text-sm font-bold mt-2">Bishop</div>
+                    </button>
+                    <button id="promote-knight" class="p-4 bg-purple-400 hover:bg-purple-500 rounded-lg transition-colors">
+                        <img class="w-16 h-16" alt="Knight">
+                        <div class="text-sm font-bold mt-2">Knight</div>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Chessboard -->
@@ -76,6 +102,10 @@
             let selectedPiece = null;
             let validMoves = [];
             let enPassantTarget = null; // {row, col} of square that can be captured en passant
+            let gameState = 'playing'; // 'playing', 'check', 'checkmate', 'stalemate', 'draw'
+            let gameHistory = []; // For threefold repetition detection
+            let isPromoting = false;
+            let promotionSquare = null;
 
             // --- Game Configuration ---
             const PIECE_MAX_MOVES = {
@@ -132,7 +162,7 @@
                     const color = rowIndex < 4 ? 'black' : 'white';
                     if (rowSetup.length > 0) {
                         rowSetup.forEach((pieceType, col) => {
-                             board[row][col] = { type: pieceType, color: color, movesLeft: PIECE_MAX_MOVES[pieceType] };
+                             board[row][col] = { type: pieceType, color: color, movesLeft: PIECE_MAX_MOVES[pieceType], tiredTurns: 0 };
                         });
                     }
                 });
@@ -185,6 +215,8 @@
             }
             
             function handleSquareClick(event) {
+                if (gameState === 'checkmate' || gameState === 'stalemate' || gameState === 'draw' || isPromoting) return;
+                
                 const square = event.target.closest('.square');
                 if (!square) return;
                 const row = parseInt(square.dataset.row);
@@ -211,7 +243,7 @@
                 }
             }
             
-            function getValidMoves(piece, row, col) {
+            function getValidMoves(piece, row, col, checkLegal = true) {
                 const moves = [];
                 const { type, color } = piece;
                 const directions = {
@@ -258,7 +290,7 @@
                     const dir = color === "white" ? -1 : 1;
                     const startRow = color === "white" ? 6 : 1;
                     // Forward move
-                    if (!board[row + dir][col]) {
+                    if (row + dir >= 0 && row + dir < 8 && !board[row + dir][col]) {
                         moves.push([row + dir, col]);
                         if (row === startRow && !board[row + 2 * dir][col]) moves.push([row + 2 * dir, col]);
                     }
@@ -266,7 +298,7 @@
                     for (const dc of [-1, 1]) {
                         const targetRow = row + dir;
                         const targetCol = col + dc;
-                        if (targetCol >= 0 && targetCol < 8) {
+                        if (targetCol >= 0 && targetCol < 8 && targetRow >= 0 && targetRow < 8) {
                             // Normal capture
                             if (board[targetRow] && board[targetRow][targetCol] && board[targetRow][targetCol].color !== color) {
                                 moves.push([targetRow, targetCol]);
@@ -283,7 +315,160 @@
                         }
                     }
                 }
+                
+                // Filter out illegal moves that would leave king in check
+                if (checkLegal) {
+                    return moves.filter(([toRow, toCol]) => isLegalMove(row, col, toRow, toCol));
+                }
+                
                 return moves;
+            }
+
+            function findKing(color) {
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        if (board[r][c] && board[r][c].type === 'king' && board[r][c].color === color) {
+                            return [r, c];
+                        }
+                    }
+                }
+                return null;
+            }
+
+            function isSquareAttacked(row, col, byColor) {
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const piece = board[r][c];
+                        if (piece && piece.color === byColor) {
+                            const moves = getValidMoves(piece, r, c, false);
+                            if (moves.some(([mr, mc]) => mr === row && mc === col)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+
+            function isInCheck(color) {
+                const kingPos = findKing(color);
+                if (!kingPos) return false;
+                return isSquareAttacked(kingPos[0], kingPos[1], color === 'white' ? 'black' : 'white');
+            }
+
+            function isLegalMove(fromRow, fromCol, toRow, toCol) {
+                // Make the move temporarily
+                const piece = board[fromRow][fromCol];
+                const captured = board[toRow][toCol];
+                const originalEnPassant = enPassantTarget;
+                
+                // Handle en passant capture
+                let enPassantCaptured = null;
+                if (piece.type === 'pawn' && enPassantTarget && 
+                    toRow === enPassantTarget.row && toCol === enPassantTarget.col &&
+                    Math.abs(toCol - fromCol) === 1) {
+                    enPassantCaptured = board[fromRow][toCol];
+                    board[fromRow][toCol] = null;
+                }
+                
+                board[toRow][toCol] = piece;
+                board[fromRow][fromCol] = null;
+                
+                const legal = !isInCheck(piece.color);
+                
+                // Restore the board
+                board[fromRow][fromCol] = piece;
+                board[toRow][toCol] = captured;
+                if (enPassantCaptured) {
+                    board[fromRow][toCol] = enPassantCaptured;
+                }
+                enPassantTarget = originalEnPassant;
+                
+                return legal;
+            }
+
+            function getAllLegalMoves(color) {
+                const moves = [];
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const piece = board[r][c];
+                        if (piece && piece.color === color && piece.movesLeft > 0) {
+                            const pieceMoves = getValidMoves(piece, r, c, true);
+                            pieceMoves.forEach(([toR, toC]) => {
+                                moves.push({from: [r, c], to: [toR, toC], piece});
+                            });
+                        }
+                    }
+                }
+                return moves;
+            }
+
+            function isCheckmate(color) {
+                return isInCheck(color) && getAllLegalMoves(color).length === 0;
+            }
+
+            function isStalemate(color) {
+                return !isInCheck(color) && getAllLegalMoves(color).length === 0;
+            }
+
+            function getBoardString() {
+                let str = '';
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const piece = board[r][c];
+                        if (piece) {
+                            str += piece.color[0] + piece.type[0];
+                        } else {
+                            str += '--';
+                        }
+                    }
+                }
+                return str;
+            }
+
+            function isThreefoldRepetition() {
+                const currentPosition = getBoardString();
+                let count = 0;
+                for (const position of gameHistory) {
+                    if (position === currentPosition) {
+                        count++;
+                        if (count >= 3) return true;
+                    }
+                }
+                return false;
+            }
+
+            function updateGameState() {
+                const opponent = currentPlayer === 'white' ? 'black' : 'white';
+                const checkIndicator = document.getElementById('check-indicator');
+                const gameStatus = document.getElementById('game-status');
+                
+                if (isCheckmate(currentPlayer)) {
+                    gameState = 'checkmate';
+                    gameStatus.innerHTML = `<span class="text-red-600 font-bold">CHECKMATE! ${opponent.charAt(0).toUpperCase() + opponent.slice(1)} wins!</span>`;
+                    checkIndicator.classList.add('hidden');
+                } else if (isStalemate(currentPlayer)) {
+                    gameState = 'stalemate';
+                    gameStatus.innerHTML = `<span class="text-yellow-600 font-bold">STALEMATE! It's a draw!</span>`;
+                    checkIndicator.classList.add('hidden');
+                } else if (isThreefoldRepetition()) {
+                    gameState = 'draw';
+                    gameStatus.innerHTML = `<span class="text-yellow-600 font-bold">DRAW! Threefold repetition!</span>`;
+                    checkIndicator.classList.add('hidden');
+                } else if (isInCheck(currentPlayer)) {
+                    gameState = 'check';
+                    gameStatus.innerHTML = `Current Turn: <span id="turn-indicator" class="font-bold text-sky-700">${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)}</span>`;
+                    checkIndicator.classList.remove('hidden');
+                } else {
+                    gameState = 'playing';
+                    gameStatus.innerHTML = `Current Turn: <span id="turn-indicator" class="font-bold text-sky-700">${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)}</span>`;
+                    checkIndicator.classList.add('hidden');
+                }
+                
+                const turnIndicator = document.getElementById('turn-indicator');
+                if (turnIndicator) {
+                    turnIndicator.style.color = currentPlayer === 'white' ? '#0369a1' : '#3f3f46';
+                }
             }
 
             function showHighlights() {
@@ -334,10 +519,12 @@
                     board[newRow][newCol] = piece;
                     board[oldRow][oldCol] = null;
 
-                    // Pawn promotion
+                    // Check for pawn promotion
                     if (piece.type === 'pawn' && (newRow === 0 || newRow === 7)) {
-                        piece.type = 'queen';
-                        piece.movesLeft = PIECE_MAX_MOVES.queen;
+                        isPromoting = true;
+                        promotionSquare = {row: newRow, col: newCol, piece};
+                        showPromotionDialog(piece.color);
+                        return; // Don't continue with turn logic until promotion is chosen
                     }
 
                     // Set en passant target
@@ -350,49 +537,109 @@
                         enPassantTarget = null;
                     }
 
-                    const previousPlayer = currentPlayer;
-                    currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
-                    turnIndicator.textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
-                    turnIndicator.style.color = currentPlayer === 'white' ? '#0369a1' : '#3f3f46';
-
-                    for (let r = 0; r < 8; r++) {
-                        for (let c = 0; c < 8; c++) {
-                            const p = board[r][c];
-                            if (p && p.color === previousPlayer && p.movesLeft === 0) {
-                                p.movesLeft = PIECE_MAX_MOVES[p.type];
-                                // We will re-render, so the "recovering" class will be added there.
-                            }
-                        }
-                    }
-
-                    selectedPiece = null;
-                    validMoves = [];
-                    renderBoard();
-                    for (let r = 0; r < 8; r++) {
-                        for (let c = 0; c < 8; c++) {
-                            const p = board[r][c];
-                            if (p && p.color === previousPlayer && p.movesLeft === PIECE_MAX_MOVES[p.type]) {
-                                const recoveredElement = getSquareElement(r, c)?.querySelector('.piece');
-                                if (recoveredElement && !recoveredElement.classList.contains('recovering')) {
-                                    recoveredElement.classList.add('recovering');
-                                    recoveredElement.addEventListener('animationend', () => {
-                                        recoveredElement.classList.remove('recovering');
-                                    }, { once: true });
-                                }
-                            }
-                        }
-                    }
+                    completeTurn();
 
                 }, 300);
+            }
+
+            function completeTurn() {
+                // Save board state for repetition detection
+                gameHistory.push(getBoardString());
+
+                const previousPlayer = currentPlayer;
+                currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+
+                // Handle tired piece recovery - pieces need to be tired for 4 full turns (2 from each side)
+                const piecesToRecover = [];
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const p = board[r][c];
+                        if (p) {
+                            if (p.movesLeft === 0) {
+                                p.tiredTurns++;
+                                // Recover after 4 turns (2 from each side)
+                                if (p.tiredTurns >= 4) {
+                                    p.movesLeft = PIECE_MAX_MOVES[p.type];
+                                    p.tiredTurns = 0;
+                                    piecesToRecover.push({r, c});
+                                }
+                            } else {
+                                p.tiredTurns = 0; // Reset tired counter if piece has moves
+                            }
+                        }
+                    }
+                }
+
+                selectedPiece = null;
+                validMoves = [];
+                renderBoard();
+                
+                // Add recovery animation to pieces that just recovered
+                piecesToRecover.forEach(({r, c}) => {
+                    const recoveredElement = getSquareElement(r, c)?.querySelector('.piece');
+                    if (recoveredElement && !recoveredElement.classList.contains('recovering')) {
+                        recoveredElement.classList.add('recovering');
+                        recoveredElement.addEventListener('animationend', () => {
+                            recoveredElement.classList.remove('recovering');
+                        }, { once: true });
+                    }
+                });
+
+                // Update game state
+                updateGameState();
+            }
+
+            function showPromotionDialog(color) {
+                const modal = document.getElementById('promotion-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                
+                // Set promotion piece images
+                document.querySelector('#promote-queen img').src = PIECE_IMAGES[color]['queen'];
+                document.querySelector('#promote-rook img').src = PIECE_IMAGES[color]['rook'];
+                document.querySelector('#promote-bishop img').src = PIECE_IMAGES[color]['bishop'];
+                document.querySelector('#promote-knight img').src = PIECE_IMAGES[color]['knight'];
+            }
+
+            function hidePromotionDialog() {
+                const modal = document.getElementById('promotion-modal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+
+            function handlePromotion(pieceType) {
+                if (!promotionSquare) return;
+                
+                const {row, col, piece} = promotionSquare;
+                piece.type = pieceType;
+                piece.movesLeft = PIECE_MAX_MOVES[pieceType];
+                piece.tiredTurns = 0;
+                
+                isPromoting = false;
+                promotionSquare = null;
+                hidePromotionDialog();
+                
+                renderBoard();
+                completeTurn();
             }
 
             function getSquareElement(row, col) {
                 return boardElement.querySelector(`[data-row='${row}'][data-col='${col}']`);
             }
 
+            // Event listeners
             boardElement.addEventListener('click', handleSquareClick);
+            
+            document.getElementById('promote-queen').addEventListener('click', () => handlePromotion('queen'));
+            document.getElementById('promote-rook').addEventListener('click', () => handlePromotion('rook'));
+            document.getElementById('promote-bishop').addEventListener('click', () => handlePromotion('bishop'));
+            document.getElementById('promote-knight').addEventListener('click', () => handlePromotion('knight'));
+            
             setupBoard();
+            updateGameState();
         });
     </script>
+     <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>eruda.init();</script>
 </body>
 </html>
